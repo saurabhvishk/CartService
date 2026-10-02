@@ -1,6 +1,7 @@
 package com.example.cartservice.services;
 
 import com.example.cartservice.clients.ProductClient;
+import com.example.cartservice.config.CacheConfig;
 import com.example.cartservice.dtos.CartDto;
 import com.example.cartservice.dtos.CartItemDto;
 import com.example.cartservice.dtos.ProductDto;
@@ -9,6 +10,8 @@ import com.example.cartservice.models.Cart;
 import com.example.cartservice.models.CartItem;
 import com.example.cartservice.repos.CartRepo;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -25,7 +28,9 @@ public class CartService implements ICartService {
     @Autowired
     private ProductClient productClient;
 
+    // after a successful add, the returned cart replaces the one in Redis
     @Override
+    @CachePut(value = CacheConfig.CARTS_CACHE, key = "#userId")
     public CartDto addItem(Long userId, Long productId, int quantity) throws ProductNotFoundException {
         // 1. the product must exist; we also need its name and price
         ProductDto product = productClient.getProduct(productId);
@@ -56,7 +61,9 @@ public class CartService implements ICartService {
         return toDto(cartRepo.save(cart));
     }
 
+    // first look in Redis; only on a miss read MongoDB and store the result in Redis
     @Override
+    @Cacheable(value = CacheConfig.CARTS_CACHE, key = "#userId")
     public CartDto getCart(Long userId) {
         return cartRepo.findByUserId(userId)
                 .map(this::toDto)
